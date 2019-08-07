@@ -63,10 +63,12 @@ class stream {
     auto cp(std::string _dir, std::string _file) -> void;
     auto rm(std::string _dir, std::string _file) -> void;
     auto mkdir(std::string _dir) -> void;
+    auto last_cmd() -> std::string;
 
   private:
     std::string __local_dir{ "" };
     std::string __remote_user_host{ "" };
     std::string __remote_dir{ "" };
+    std::string __last_cmd{ "" };
 };
 }

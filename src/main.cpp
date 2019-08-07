@@ -30,11 +30,12 @@ main(int argc, char* argv[]) {
                   if (_tried)
                       _stream.mkdir(_dir);
                   _stream.cp(_dir, _file);
+                  std::cout << "* " << _stream.last_cmd() << " [ ok ]" << std::endl << std::flush;
                   return true;
               }
               catch (malatesta::remote_failure_exception& _e) {
+                  std::cout << _e.what() << " [ fail ]" << std::endl << std::flush;
                   if (_tried) {
-                      std::cout << _e.what() << std::endl << std::flush;
                       break;
                   }
                   _tried = true;
@@ -49,10 +50,11 @@ main(int argc, char* argv[]) {
                            std::string _file) -> bool {
                     try {
                         _stream.rm(_dir, _file);
+                        std::cout << "* " << _stream.last_cmd() << " [ ok ]" << std::endl << std::flush;
                         return true;
                     }
                     catch (malatesta::remote_failure_exception& _e) {
-                        std::cout << _e.what() << std::endl << std::flush;
+                        std::cout << _e.what() << " [ fail ]" << std::endl << std::flush;
                     }
                     return false;
                 });

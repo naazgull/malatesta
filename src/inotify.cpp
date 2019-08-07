@@ -58,7 +58,7 @@ malatesta::observer::hook(malatesta::observer::event_type _ev_type,
 auto
 malatesta::observer::hook(std::initializer_list<malatesta::observer::event_type> _ev_types,
                           malatesta::observer::event_handler _handler) -> void {
-    for (auto _ev_type: _ev_types)
+    for (auto _ev_type : _ev_types)
         this->hook(_ev_type, _handler);
 }
 
@@ -75,8 +75,13 @@ malatesta::observer::listen() -> void {
         const struct inotify_event* _event{ nullptr };
         for (char* _ptr = _buf; _ptr < _buf + _len;
              _ptr += sizeof(struct inotify_event) + _event->len) {
-
             _event = reinterpret_cast<const struct inotify_event*>(_ptr);
+
+            std::string _file;
+            if (_event->len)
+                _file.assign(_event->name);
+            if (_file[0] == '.' || _file.find(".#") != std::string::npos)
+                continue;
 
             malatesta::observer::event_type _ev_type{ malatesta::observer::event_type::UNKOWN };
             if (_event->mask & IN_MODIFY) {
@@ -92,15 +97,11 @@ malatesta::observer::listen() -> void {
                 continue;
 
             std::string _target;
-            std::string _file;
             for (auto _wd : this->__file_descriptors) {
                 auto [_name, _fd] = _wd;
                 if (_fd == _event->wd)
                     _target.assign(_name);
             }
-
-            if (_event->len)
-                _file.assign(_event->name);
 
             this->handle(_ev_type, _target, _file);
         }
@@ -134,8 +135,9 @@ malatesta::stream::cp(std::string _dir, std::string _file) -> void {
     std::ostringstream _oss;
     _oss << "scp " << _dir << "/" << _file << " " << this->__remote_user_host << ":"
          << this->__remote_dir << _suffix << "/" << _file << std::flush;
-    if (std::system(_oss.str().data()) != 0)
-        throw malatesta::remote_failure_exception(_oss.str());
+    this->__last_cmd.assign(_oss.str());
+    if (std::system(this->__last_cmd.data()) != 0)
+        throw malatesta::remote_failure_exception(this->__last_cmd);
 }
 
 auto
@@ -145,8 +147,9 @@ malatesta::stream::rm(std::string _dir, std::string _file) -> void {
     std::ostringstream _oss;
     _oss << "ssh " << this->__remote_user_host << "  \"rm -rfv " << this->__remote_dir << _suffix
          << "/" << _file << "\"" << std::flush;
-    if (std::system(_oss.str().data()) != 0)
-        throw malatesta::remote_failure_exception(_oss.str());
+    this->__last_cmd.assign(_oss.str());
+    if (std::system(this->__last_cmd.data()) != 0)
+        throw malatesta::remote_failure_exception(this->__last_cmd);
 }
 
 auto
@@ -156,6 +159,12 @@ malatesta::stream::mkdir(std::string _dir) -> void {
     std::ostringstream _oss;
     _oss << "ssh " << this->__remote_user_host << " \"mkdir -p " << this->__remote_dir << _suffix
          << "/\"" << std::flush;
-    if (std::system(_oss.str().data()) != 0)
-        throw malatesta::remote_failure_exception(_oss.str());
+    this->__last_cmd.assign(_oss.str());
+    if (std::system(this->__last_cmd.data()) != 0)
+        throw malatesta::remote_failure_exception(this->__last_cmd);
+}
+
+auto
+malatesta::stream::last_cmd() -> std::string {
+    return this->__last_cmd;
 }

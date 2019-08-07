@@ -1,18 +1,61 @@
- #include <signal.h>
- #include <unistd.h>
- #include <iostream>
- #include <fstream>
- #include <string>
- #include <sys/types.h>
- #include <sys/ipc.h>
- #include <sys/sem.h>
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <sys/types.h>
+#include <unistd.h>
+#include <malatesta/malatesta.h>
 
- using namespace std;
- #if !defined __APPLE__
- using namespace __gnu_cxx;
- #endif
+int
+main(int argc, char* argv[]) {
+    if (argc < 3) {
+        std::cout << "Usage: malatesta <local dir> <full qualified remote dir>" << std::endl
+                  << std::flush;
+        return 1;
+    }
 
- int main(int argc, char* argv[]) {
-         return 0;
- }
+    std::string _local_uri{ argv[1] };
+    std::string _remote_uri{ argv[2] };
 
+    malatesta::stream _stream{ _local_uri, _remote_uri };
+    malatesta::observer _watch;
+    _watch.add(_local_uri);
+
+    _watch.hook(
+      { malatesta::observer::event_type::CHANGE, malatesta::observer::event_type::CREATION },
+      [&_stream](
+        malatesta::observer::event_type _type, std::string _dir, std::string _file) -> bool {
+          bool _tried{ false };
+          for (;;) {
+              try {
+                  if (_tried)
+                      _stream.mkdir(_dir);
+                  _stream.cp(_dir, _file);
+                  return true;
+              }
+              catch (malatesta::remote_failure_exception& _e) {
+                  if (_tried) {
+                      std::cout << _e.what() << std::endl << std::flush;
+                      break;
+                  }
+                  _tried = true;
+              }
+          }
+          return false;
+      });
+
+    _watch.hook(malatesta::observer::event_type::REMOVAL,
+                [&_stream](malatesta::observer::event_type _type,
+                           std::string _dir,
+                           std::string _file) -> bool {
+                    try {
+                        _stream.rm(_dir, _file);
+                        return true;
+                    }
+                    catch (malatesta::remote_failure_exception& _e) {
+                        std::cout << _e.what() << std::endl << std::flush;
+                    }
+                    return false;
+                });
+    _watch.listen();
+    return 0;
+}

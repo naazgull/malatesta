@@ -8,4 +8,5 @@ malatesta_LDFLAGS =
 malatesta_CPPFLAGS = -O3 -std=c++17 -Wall -I../../include
 
 malatesta_SOURCES = \
-./main.cpp
+./main.cpp \
+./inotify.cpp

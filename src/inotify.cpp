@@ -37,7 +37,7 @@ malatesta::observer::add(std::string _path) -> void {
 
     while (dirent* _entry = readdir(_dir)) {
         std::string _d_entry{ _entry->d_name };
-        if (_d_entry[0] == ".")
+        if (_d_entry[0] == '.')
             continue;
         if (_entry->d_type == DT_DIR)
             this->add(_path + std::string{ "/" } + _d_entry);

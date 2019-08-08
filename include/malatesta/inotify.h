@@ -14,6 +14,17 @@
 
 namespace malatesta {
 
+class dir_not_found_exception : public std::exception {
+  public:
+    dir_not_found_exception(std::string _dir);
+    virtual ~dir_not_found_exception() = default;
+
+    auto what() -> char const*;
+
+  private:
+    std::string __what{ "" };
+};
+
 class inotify_closed_exception : public std::exception {
   public:
     inotify_closed_exception() = default;
@@ -42,9 +53,9 @@ class observer {
     observer();
     virtual ~observer();
 
-    auto add(std::string path) -> void;
-    auto hook(event_type _ev_type, event_handler _handler) -> void;
-    auto hook(std::initializer_list<event_type> _ev_types, event_handler _handler) -> void;
+    auto add(std::string path) -> observer&;
+    auto hook(event_type _ev_type, event_handler _handler) -> observer&;
+    auto hook(std::initializer_list<event_type> _ev_types, event_handler _handler) -> observer&;
     auto listen() -> void;
 
   private:
@@ -57,18 +68,20 @@ class observer {
 
 class stream {
   public:
-    stream(std::string _local_uri, std::string _remote_uri);
+    stream() = default;
     virtual ~stream() = default;
 
-    auto cp(std::string _dir, std::string _file) -> void;
-    auto rm(std::string _dir, std::string _file) -> void;
-    auto mkdir(std::string _dir) -> void;
+    auto add(std::string _local_uri, std::string _remote_uri) -> stream&;
+    auto cp(std::string _dir, std::string _file) -> stream&;
+    auto rm(std::string _dir, std::string _file) -> stream&;
+    auto mkdir(std::string _dir) -> stream&;
     auto last_cmd() -> std::string;
 
   private:
-    std::string __local_dir{ "" };
-    std::string __remote_user_host{ "" };
-    std::string __remote_dir{ "" };
+    std::vector<std::string> __local_uri;
+    std::map<std::string, std::tuple<std::string, std::string>> __remote_uri;
     std::string __last_cmd{ "" };
+
+    auto find(std::string _dir) -> std::tuple<std::string, std::string, std::string>;
 };
 }

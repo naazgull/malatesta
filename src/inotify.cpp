@@ -3,13 +3,21 @@
 #include <sstream>
 #include <dirent.h>
 
+malatesta::dir_not_found_exception::dir_not_found_exception(std::string _dir)
+  : __what{ std::string{ "could not find dir: " } + _dir } {}
+
+auto
+malatesta::dir_not_found_exception::what() -> char const* {
+    return this->__what.c_str();
+}
+
 auto
 malatesta::inotify_closed_exception::what() -> char const* {
-    return "inotify file descriptor is corrupted";
+    return "inotify descriptor is corrupted";
 }
 
 malatesta::remote_failure_exception::remote_failure_exception(std::string _cmd)
-  : __what{ std::string{ "failure while executing remote command: " } + _cmd } {}
+  : __what{ std::string{ "while executing remote command: " } + _cmd } {}
 
 auto
 malatesta::remote_failure_exception::what() -> char const* {
@@ -25,10 +33,10 @@ malatesta::observer::~observer() {
 }
 
 auto
-malatesta::observer::add(std::string _path) -> void {
+malatesta::observer::add(std::string _path) -> malatesta::observer& {
     DIR* _dir{ opendir(_path.data()) };
     if (_dir == nullptr)
-        return;
+        throw malatesta::dir_not_found_exception(_path);
 
     this->__file_descriptors.push_back(std::make_tuple(
       _path,
@@ -43,23 +51,26 @@ malatesta::observer::add(std::string _path) -> void {
             this->add(_path + std::string{ "/" } + _d_entry);
     }
     closedir(_dir);
+    return *this;
 }
 
 auto
 malatesta::observer::hook(malatesta::observer::event_type _ev_type,
-                          malatesta::observer::event_handler _handler) -> void {
+                          malatesta::observer::event_handler _handler) -> malatesta::observer& {
     std::vector<malatesta::observer::event_handler> _list = { _handler };
     auto [_it, _inserted] = this->__event_handlers.insert(std::make_pair(_ev_type, _list));
     if (!_inserted) {
         _it->second.push_back(_handler);
     }
+    return *this;
 }
 
 auto
 malatesta::observer::hook(std::initializer_list<malatesta::observer::event_type> _ev_types,
-                          malatesta::observer::event_handler _handler) -> void {
+                          malatesta::observer::event_handler _handler) -> malatesta::observer& {
     for (auto _ev_type : _ev_types)
         this->hook(_ev_type, _handler);
+    return *this;
 }
 
 auto
@@ -121,50 +132,88 @@ malatesta::observer::handle(malatesta::observer::event_type _ev_type,
     }
 }
 
-malatesta::stream::stream(std::string _local_uri, std::string _remote_uri)
-  : __local_dir{ _local_uri } {
-    size_t _idx = _remote_uri.find(":");
-    this->__remote_user_host.assign(_remote_uri.substr(0, _idx));
-    this->__remote_dir.assign(_remote_uri.substr(_idx + 1));
+auto
+malatesta::stream::add(std::string _local_uri, std::string _remote_uri) -> malatesta::stream& {
+    try {
+        this->find(_local_uri);
+    }
+    catch (malatesta::dir_not_found_exception& e) {
+        this->__local_uri.push_back(_local_uri);
+        size_t _idx = _remote_uri.find(":");
+        this->__remote_uri.insert(std::make_pair(
+          _local_uri, std::make_tuple(_remote_uri.substr(0, _idx), _remote_uri.substr(_idx + 1))));
+    }
+    return *this;
 }
 
 auto
-malatesta::stream::cp(std::string _dir, std::string _file) -> void {
-    std::string _suffix{ _dir.substr(this->__local_dir.length()) };
+malatesta::stream::cp(std::string _dir, std::string _file) -> malatesta::stream& {
+    auto [_local_dir, _remote_user_host, _remote_dir] = this->find(_dir);
+    std::string _suffix{ _dir.substr(_local_dir.length()) };
 
     std::ostringstream _oss;
-    _oss << "scp " << _dir << "/" << _file << " " << this->__remote_user_host << ":"
-         << this->__remote_dir << _suffix << "/" << _file << std::flush;
+    _oss << "scp " << _dir << "/" << _file << " " << _remote_user_host << ":" << _remote_dir
+         << _suffix << "/" << _file << std::flush;
+
     this->__last_cmd.assign(_oss.str());
     if (std::system(this->__last_cmd.data()) != 0)
         throw malatesta::remote_failure_exception(this->__last_cmd);
+
+    return *this;
 }
 
 auto
-malatesta::stream::rm(std::string _dir, std::string _file) -> void {
-    std::string _suffix{ _dir.substr(this->__local_dir.length()) };
+malatesta::stream::rm(std::string _dir, std::string _file) -> malatesta::stream& {
+    auto [_local_dir, _remote_user_host, _remote_dir] = this->find(_dir);
+    std::string _suffix{ _dir.substr(_local_dir.length()) };
 
     std::ostringstream _oss;
-    _oss << "ssh " << this->__remote_user_host << "  \"rm -rfv " << this->__remote_dir << _suffix
-         << "/" << _file << "\"" << std::flush;
+    _oss << "ssh " << _remote_user_host << "  \"rm -rfv " << _remote_dir << _suffix << "/" << _file
+         << "\"" << std::flush;
     this->__last_cmd.assign(_oss.str());
     if (std::system(this->__last_cmd.data()) != 0)
         throw malatesta::remote_failure_exception(this->__last_cmd);
+
+    return *this;
 }
 
 auto
-malatesta::stream::mkdir(std::string _dir) -> void {
-    std::string _suffix{ _dir.substr(this->__local_dir.length()) };
+malatesta::stream::mkdir(std::string _dir) -> malatesta::stream& {
+    auto [_local_dir, _remote_user_host, _remote_dir] = this->find(_dir);
+    std::string _suffix{ _dir.substr(_local_dir.length()) };
 
     std::ostringstream _oss;
-    _oss << "ssh " << this->__remote_user_host << " \"mkdir -p " << this->__remote_dir << _suffix
-         << "/\"" << std::flush;
+    _oss << "ssh " << _remote_user_host << " \"mkdir -p " << _remote_dir << _suffix << "/\""
+         << std::flush;
     this->__last_cmd.assign(_oss.str());
     if (std::system(this->__last_cmd.data()) != 0)
         throw malatesta::remote_failure_exception(this->__last_cmd);
+
+    return *this;
 }
 
 auto
 malatesta::stream::last_cmd() -> std::string {
     return this->__last_cmd;
+}
+
+auto
+malatesta::stream::find(std::string _dir) -> std::tuple<std::string, std::string, std::string> {
+    std::string _local_dir{ "" };
+
+    for (auto _item : this->__local_uri) {
+        if (_dir.find(_item) == 0)
+            _local_dir.assign(_item);
+    }
+
+    if (_local_dir.length() == 0)
+        throw malatesta::dir_not_found_exception(_dir);
+
+    auto _found = this->__remote_uri.find(_local_dir);
+    if (_found == this->__remote_uri.end())
+        throw malatesta::dir_not_found_exception(_dir);
+
+    auto [_remote_user_host, _remote_dir] = _found->second;
+
+    return std::make_tuple(_local_dir, _remote_user_host, _remote_dir);
 }

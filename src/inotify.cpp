@@ -33,7 +33,21 @@ malatesta::observer::~observer() {
 }
 
 auto
-malatesta::observer::add(std::string _path) -> malatesta::observer& {
+malatesta::observer::add_exclusion(std::string _regex) -> malatesta::observer& {
+    std::cout << "add: exclusion " << _regex << std::endl << std::flush;
+    this->__excluded_dirs.push_back(std::regex{ _regex, std::regex::icase });
+    return *this;
+}
+
+auto
+malatesta::observer::add_filter(std::string _regex) -> malatesta::observer& {
+    std::cout << "add: filter " << _regex << std::endl << std::flush;
+    this->__file_filters.push_back(std::regex{ _regex, std::regex::icase });
+    return *this;
+}
+
+auto
+malatesta::observer::add_watch(std::string _path) -> malatesta::observer& {
     DIR* _dir{ opendir(_path.data()) };
     if (_dir == nullptr)
         throw malatesta::dir_not_found_exception(_path);
@@ -45,10 +59,10 @@ malatesta::observer::add(std::string _path) -> malatesta::observer& {
 
     while (dirent* _entry = readdir(_dir)) {
         std::string _d_entry{ _entry->d_name };
-        if (_d_entry[0] == '.')
+        if (_d_entry == "." || _d_entry == ".." || this->is_excluded(_d_entry))
             continue;
         if (_entry->d_type == DT_DIR)
-            this->add(_path + std::string{ "/" } + _d_entry);
+            this->add_watch(_path + std::string{ "/" } + _d_entry);
     }
     closedir(_dir);
     return *this;
@@ -91,7 +105,7 @@ malatesta::observer::listen() -> void {
             std::string _file;
             if (_event->len)
                 _file.assign(_event->name);
-            if (_file[0] == '.' || _file.find(".#") != std::string::npos)
+            if (!this->is_included(_file))
                 continue;
 
             malatesta::observer::event_type _ev_type{ malatesta::observer::event_type::UNKOWN };
@@ -130,6 +144,27 @@ malatesta::observer::handle(malatesta::observer::event_type _ev_type,
                 break;
         }
     }
+}
+
+auto
+malatesta::observer::is_excluded(std::string _dir) const -> bool {
+    for (auto _regex : this->__excluded_dirs) {
+        if (std::regex_match(_dir, _regex))
+            return true;
+    }
+    return false;
+}
+
+auto
+malatesta::observer::is_included(std::string _file) const -> bool {
+    if (this->__file_filters.size() == 0)
+        return true;
+
+    for (auto _regex : this->__file_filters) {
+        if (std::regex_match(_file, _regex))
+            return true;
+    }
+    return false;
 }
 
 auto
@@ -193,12 +228,13 @@ malatesta::stream::mkdir(std::string _dir) -> malatesta::stream& {
 }
 
 auto
-malatesta::stream::last_cmd() -> std::string {
+malatesta::stream::last_cmd() const -> std::string {
     return this->__last_cmd;
 }
 
 auto
-malatesta::stream::find(std::string _dir) -> std::tuple<std::string, std::string, std::string> {
+malatesta::stream::find(std::string _dir) const
+  -> std::tuple<std::string, std::string, std::string> {
     std::string _local_dir{ "" };
 
     for (auto _item : this->__local_uri) {

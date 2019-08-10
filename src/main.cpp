@@ -10,51 +10,60 @@
 
 int
 main(int argc, char* argv[]) {
+    std::string _usage{
+        "usage: malatesta -w <local dir>,<full qualified remote dir> -x <exclude dirs regex> -f <included files regex>\n"
+        "       -w\tlocal and remote uri pair - multiple occurrences accepted\n"
+        "       -x\tdirectory pattern to be excluded from watches - multiple occurrences accepted\n"
+        "       -f\tfile pattern to include in watches - multiple occurrences accepted\n"
+    };
     if (argc < 3) {
-        std::cout << "usage: malatesta -w <local dir>,<full qualified remote dir> [-w <local "
-                     "dir>,<full qualified remote dir> ...]"
-                  << std::endl
-                  << std::flush;
+        std::cout << _usage << std::endl << std::flush;
         return 1;
     }
 
     malatesta::stream _stream;
     malatesta::observer _watch;
+    std::vector<std::string> _local_uri_params;
     int _opt{ -1 };
     opterr = 0;
-    while ((_opt = getopt(argc, argv, "w:")) != -1) {
+    while ((_opt = getopt(argc, argv, "w:x:f:")) != -1) {
         switch (_opt) {
             case 'w': {
                 std::string _opt_val{ const_cast<char const*>(optarg) };
                 std::string _local_uri{ _opt_val.substr(0, _opt_val.find(",")) };
                 std::string _remote_uri{ _opt_val.substr(_opt_val.find(",") + 1) };
-                _watch.add(_local_uri);
+                _local_uri_params.push_back(_local_uri);
                 _stream.add(_local_uri, _remote_uri);
-                std::cout << "watch: " << _local_uri << " -> " << _remote_uri << " [ ok ]" << std::endl
+                std::cout << "watch: " << _local_uri << " -> " << _remote_uri << " [ ok ]"
+                          << std::endl
                           << std::flush;
                 break;
             }
-            case '?': {
-                std::cout
-                  << "usage: malatesta -w <local dir>,<full qualified remote dir> [-w <local "
-                     "dir>,<full qualified remote dir> ...]"
-                  << std::endl
-                  << std::flush;
-                return 1;
+            case 'x': {
+                std::string _opt_val{ const_cast<char const*>(optarg) };
+                _watch.add_exclusion(_opt_val);
+                break;
             }
+            case 'f': {
+                std::string _opt_val{ const_cast<char const*>(optarg) };
+                _watch.add_filter(_opt_val);
+                break;
+            }
+            case '?':
             default: {
-                abort();
+                std::cout << _usage << std::endl << std::flush;
+                return 1;
             }
         }
     }
 
     if (optind != argc) {
-        std::cout << "usage: malatesta -w <local dir>,<full qualified remote dir> [-w <local "
-                     "dir>,<full qualified remote dir> ...]"
-                  << std::endl
-                  << std::flush;
+        std::cout << _usage << std::endl << std::flush;
         return 1;
     }
+
+    for (auto _local_uri : _local_uri_params)
+        _watch.add_watch(_local_uri);
 
     _watch.hook(
       { malatesta::observer::event_type::CHANGE, malatesta::observer::event_type::CREATION },
@@ -65,10 +74,12 @@ main(int argc, char* argv[]) {
               try {
                   if (_tried) {
                       _stream.mkdir(_dir);
-                      std::cout << "exec: " << _stream.last_cmd() << " [ ok ]" << std::endl << std::flush;
+                      std::cout << "exec: " << _stream.last_cmd() << " [ ok ]" << std::endl
+                                << std::flush;
                   }
                   _stream.cp(_dir, _file);
-                  std::cout << "exec: " << _stream.last_cmd() << " [ ok ]" << std::endl << std::flush;
+                  std::cout << "exec: " << _stream.last_cmd() << " [ ok ]" << std::endl
+                            << std::flush;
                   return true;
               }
               catch (malatesta::remote_failure_exception& _e) {

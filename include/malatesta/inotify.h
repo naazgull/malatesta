@@ -11,6 +11,7 @@
 #include <string>
 #include <tuple>
 #include <functional>
+#include <regex>
 
 namespace malatesta {
 
@@ -53,17 +54,23 @@ class observer {
     observer();
     virtual ~observer();
 
-    auto add(std::string path) -> observer&;
+    auto add_exclusion(std::string path) -> observer&;
+    auto add_filter(std::string path) -> observer&;
+    auto add_watch(std::string path) -> observer&;
     auto hook(event_type _ev_type, event_handler _handler) -> observer&;
     auto hook(std::initializer_list<event_type> _ev_types, event_handler _handler) -> observer&;
     auto listen() -> void;
 
   private:
+    std::vector<std::regex> __excluded_dirs;
+    std::vector<std::regex> __file_filters;
     std::vector<std::tuple<std::string, int>> __file_descriptors;
     std::map<event_type, std::vector<event_handler>> __event_handlers;
     int __inotify_descriptor{ 0 };
 
     auto handle(event_type _ev_type, std::string _dir, std::string _file) -> void;
+    auto is_excluded(std::string _dir) const -> bool;
+    auto is_included(std::string _file) const -> bool;
 };
 
 class stream {
@@ -75,13 +82,13 @@ class stream {
     auto cp(std::string _dir, std::string _file) -> stream&;
     auto rm(std::string _dir, std::string _file) -> stream&;
     auto mkdir(std::string _dir) -> stream&;
-    auto last_cmd() -> std::string;
+    auto last_cmd() const -> std::string;
 
   private:
     std::vector<std::string> __local_uri;
     std::map<std::string, std::tuple<std::string, std::string>> __remote_uri;
     std::string __last_cmd{ "" };
 
-    auto find(std::string _dir) -> std::tuple<std::string, std::string, std::string>;
+    auto find(std::string _dir) const -> std::tuple<std::string, std::string, std::string>;
 };
 }

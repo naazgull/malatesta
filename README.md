@@ -1,3 +1,14 @@
+Installation
+------------
+
+1. Clone or download and extract the latest version from the [release page](https://github.com/naazgull/malatesta/releases)
+2. Enter the cloned or extracted directory and execute:
+
+       $ autoreconf -vfi
+       $ ./configure --prefix=/usr "CXXFLAGS=-O3 -Wall -std=c++17"
+       $ make
+       $ sudo make install
+
 Usage
 -----
 

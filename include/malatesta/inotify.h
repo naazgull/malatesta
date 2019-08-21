@@ -34,6 +34,14 @@ class inotify_closed_exception : public std::exception {
     auto what() -> char const*;
 };
 
+class wrong_parameter_exception : public std::exception {
+  public:
+    wrong_parameter_exception() = default;
+    virtual ~wrong_parameter_exception() = default;
+
+    auto what() -> char const*;
+};
+
 class remote_failure_exception : public std::exception {
   public:
     remote_failure_exception(std::string _cmd);
@@ -43,6 +51,68 @@ class remote_failure_exception : public std::exception {
 
   private:
     std::string __what{ "" };
+};
+
+class event_set {
+  public:
+    event_set() = default;
+    event_set(ssize_t _size);
+    event_set(const event_set&) = delete;
+    event_set(event_set&&) = delete;
+    virtual ~event_set() = default;
+
+    auto operator=(const event_set&) -> event_set& = delete;
+    auto operator=(event_set &&) -> event_set& = delete;
+
+    class iterator {
+      public:
+        using difference_type = std::ptrdiff_t;
+        using value_type = const struct inotify_event*;
+        using pointer = const struct inotify_event*;
+        using reference = const struct inotify_event*;
+        using iterator_category = std::forward_iterator_tag;
+
+        explicit iterator(char* _buffer, ssize_t _position, ssize_t _size);
+        iterator(const iterator& _rhs);
+        virtual ~iterator() = default;
+
+        // BASIC ITERATOR METHODS //
+        auto operator=(const iterator& _rhs) -> iterator&;
+        auto operator++() -> iterator&;
+        auto operator*() const -> reference;
+        // END / BASIC ITERATOR METHODS //
+        // INPUT ITERATOR METHODS //
+        auto operator++(int) -> iterator;
+        auto operator-> () const -> pointer;
+        auto operator==(iterator _rhs) const -> bool;
+        auto operator!=(iterator _rhs) const -> bool;
+        // END / INPUT ITERATOR METHODS //
+
+        // OUTPUT ITERATOR METHODS //
+        // reference operator*() const; <- already defined
+        // iterator operator++(int); <- already defined
+        // END / OUTPUT ITERATOR METHODS //
+        // FORWARD ITERATOR METHODS //
+        // Enable support for both input and output iterator <- already enabled
+        // END / FORWARD ITERATOR METHODS //
+
+      private:
+        char* __buffer{ nullptr };
+        char* __pointer{ nullptr };
+        const struct inotify_event* __current{ nullptr };
+        ssize_t __size{ 0 };
+    };
+
+    auto begin() -> iterator;
+    auto end() -> iterator;
+    operator char*();
+    operator ssize_t();
+    auto operator=(ssize_t _size) -> event_set&;
+    auto capacity() const -> size_t;
+
+  private:
+    char __buffer[4096] __attribute__((aligned(__alignof__(struct inotify_event)))) = { 0 };
+    ssize_t __size{ 0 };
 };
 
 class observer {
@@ -56,7 +126,7 @@ class observer {
 
     auto add_exclusion(std::string path) -> observer&;
     auto add_filter(std::string path) -> observer&;
-    auto add_watch(std::string path) -> observer&;
+    auto add_watch(std::string path, bool _recursive = true) -> observer&;
     auto hook(event_type _ev_type, event_handler _handler) -> observer&;
     auto hook(std::initializer_list<event_type> _ev_types, event_handler _handler) -> observer&;
     auto listen() -> void;

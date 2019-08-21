@@ -1,4 +1,5 @@
 #include <malatesta/inotify.h>
+#include <malatesta/app.h>
 #include <iostream>
 #include <sstream>
 #include <dirent.h>
@@ -16,12 +17,104 @@ malatesta::inotify_closed_exception::what() -> char const* {
     return "inotify descriptor is corrupted";
 }
 
+auto
+malatesta::wrong_parameter_exception::what() -> char const* {
+    return malatesta::app::USAGE.data();
+}
+
 malatesta::remote_failure_exception::remote_failure_exception(std::string _cmd)
   : __what{ std::string{ "while executing remote command: " } + _cmd } {}
 
 auto
 malatesta::remote_failure_exception::what() -> char const* {
     return this->__what.c_str();
+}
+
+malatesta::event_set::event_set(ssize_t _size)
+  : __size{ _size } {}
+
+auto
+malatesta::event_set::begin() -> iterator {
+    return iterator{ this->__buffer, 0, this->__size };
+}
+
+auto
+malatesta::event_set::end() -> iterator {
+    return iterator{ this->__buffer, this->__size, this->__size };
+}
+
+malatesta::event_set::operator char*() {
+    return this->__buffer;
+}
+
+malatesta::event_set::operator ssize_t() {
+    return this->__size;
+}
+
+auto
+malatesta::event_set::operator=(ssize_t _size) -> event_set& {
+    this->__size = _size;
+    return (*this);
+}
+
+auto
+malatesta::event_set::capacity() const -> size_t {
+    return 4096;
+}
+
+malatesta::event_set::iterator::iterator(char* _buffer, ssize_t _position, ssize_t _size)
+  : __buffer{ _buffer }
+  , __pointer{ __buffer + _position }
+  , __current{ reinterpret_cast<const struct inotify_event*>(__pointer) }
+  , __size{ _size } {}
+
+malatesta::event_set::iterator::iterator(const iterator& _rhs) {
+    (*this) = _rhs;
+}
+
+auto
+malatesta::event_set::iterator::operator=(const iterator& _rhs) -> iterator& {
+    this->__buffer = _rhs.__buffer;
+    this->__pointer = _rhs.__pointer;
+    this->__current = _rhs.__current;
+    this->__size = _rhs.__size;
+    return (*this);
+}
+
+auto
+malatesta::event_set::iterator::operator++() -> iterator& {
+    if (this->__pointer - this->__buffer >= this->__size) {
+        return (*this);
+    }
+
+    this->__pointer += sizeof(struct inotify_event) + this->__current->len;
+    this->__current = reinterpret_cast<const struct inotify_event*>(this->__pointer);
+    return (*this);
+}
+
+auto malatesta::event_set::iterator::operator*() const -> reference {
+    return this->__current;
+}
+
+auto
+malatesta::event_set::iterator::operator++(int) -> iterator {
+    iterator _to_return = (*this);
+    ++(*this);
+    return _to_return;
+}
+
+auto malatesta::event_set::iterator::operator-> () const -> pointer {
+    return this->__current;
+}
+
+auto
+malatesta::event_set::iterator::operator==(iterator _rhs) const -> bool {
+    return this->__buffer == _rhs.__buffer && this->__pointer == _rhs.__pointer;
+}
+
+auto
+malatesta::event_set::iterator::operator!=(iterator _rhs) const -> bool {
+    return !((*this) == _rhs);
 }
 
 malatesta::observer::observer() {
@@ -47,7 +140,7 @@ malatesta::observer::add_filter(std::string _regex) -> malatesta::observer& {
 }
 
 auto
-malatesta::observer::add_watch(std::string _path) -> malatesta::observer& {
+malatesta::observer::add_watch(std::string _path, bool _recursive) -> malatesta::observer& {
     DIR* _dir{ opendir(_path.data()) };
     if (_dir == nullptr)
         throw malatesta::dir_not_found_exception(_path);
@@ -57,12 +150,14 @@ malatesta::observer::add_watch(std::string _path) -> malatesta::observer& {
       inotify_add_watch(
         this->__inotify_descriptor, _path.c_str(), IN_MODIFY | IN_DELETE | IN_CREATE)));
 
-    while (dirent* _entry = readdir(_dir)) {
-        std::string _d_entry{ _entry->d_name };
-        if (_d_entry == "." || _d_entry == ".." || this->is_excluded(_d_entry))
-            continue;
-        if (_entry->d_type == DT_DIR)
-            this->add_watch(_path + std::string{ "/" } + _d_entry);
+    if (_recursive) {
+        while (dirent* _entry = readdir(_dir)) {
+            std::string _d_entry{ _entry->d_name };
+            if (_d_entry == "." || _d_entry == ".." || this->is_excluded(_d_entry))
+                continue;
+            if (_entry->d_type == DT_DIR)
+                this->add_watch(_path + std::string{ "/" } + _d_entry);
+        }
     }
     closedir(_dir);
     return *this;
@@ -89,19 +184,14 @@ malatesta::observer::hook(std::initializer_list<malatesta::observer::event_type>
 
 auto
 malatesta::observer::listen() -> void {
-    char _buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
+    malatesta::event_set _buf;
 
     for (;;) {
 
-        ssize_t _len = ::read(this->__inotify_descriptor, _buf, sizeof _buf);
-        if (_len < 0)
+        if ((_buf = ::read(this->__inotify_descriptor, _buf, _buf.capacity())) < 0)
             throw malatesta::inotify_closed_exception();
 
-        const struct inotify_event* _event{ nullptr };
-        for (char* _ptr = _buf; _ptr < _buf + _len;
-             _ptr += sizeof(struct inotify_event) + _event->len) {
-            _event = reinterpret_cast<const struct inotify_event*>(_ptr);
-
+        for (auto _event : _buf) {
             std::string _file;
             if (_event->len)
                 _file.assign(_event->name);
@@ -157,7 +247,7 @@ malatesta::observer::is_excluded(std::string _dir) const -> bool {
 
 auto
 malatesta::observer::is_included(std::string _file) const -> bool {
-    if (this->__file_filters.size() == 0)
+    if (this->__file_filters.size() == 0 || _file == "malatesta-lock")
         return true;
 
     for (auto _regex : this->__file_filters) {

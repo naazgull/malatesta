@@ -9,4 +9,5 @@ malatesta_CPPFLAGS = -O3 -std=c++17 -Wall -I../include
 
 malatesta_SOURCES = \
 ./main.cpp \
-./inotify.cpp
+./inotify.cpp \
+./app.cpp

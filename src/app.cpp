@@ -7,7 +7,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <cstdlib>
-#include <filesystem>
 
 malatesta::app::app(int _argc, char** _argv)
   : __argc{ _argc }
@@ -108,22 +107,27 @@ malatesta::app::start() -> app& {
 
 auto
 malatesta::app::process_params() -> app& {
+    if (this->__argc < 2)
+        throw malatesta::wrong_parameter_exception();
+
     std::vector<std::string> _local_uri_params;
     int _opt{ -1 };
     opterr = 0;
     while ((_opt = getopt(this->__argc, this->__argv, "prw:x:f:")) != -1) {
         switch (_opt) {
             case 'p': {
-                std::cout << "pausing malatesta " << std::endl << std::flush;
+                std::cout << "pause: all file watches stopped" << std::endl << std::flush;
                 this->__pause_resume = 1;
                 return (*this);
             }
             case 'r': {
-                std::cout << "resuming malatesta " << std::endl << std::flush;
+                std::cout << "resume: all file watches resumed" << std::endl << std::flush;
                 this->__pause_resume = 2;
                 return (*this);
             }
             case 'w': {
+                if (this->__argc < 3)
+                    throw malatesta::wrong_parameter_exception();
                 std::string _opt_val{ const_cast<char const*>(optarg) };
                 std::string _local_uri{ _opt_val.substr(0, _opt_val.find(",")) };
                 std::string _remote_uri{ _opt_val.substr(_opt_val.find(",") + 1) };
@@ -135,11 +139,15 @@ malatesta::app::process_params() -> app& {
                 break;
             }
             case 'x': {
+                if (this->__argc < 5)
+                    throw malatesta::wrong_parameter_exception();
                 std::string _opt_val{ const_cast<char const*>(optarg) };
                 this->__watch.add_exclusion(_opt_val);
                 break;
             }
             case 'f': {
+                if (this->__argc < 5)
+                    throw malatesta::wrong_parameter_exception();
                 std::string _opt_val{ const_cast<char const*>(optarg) };
                 this->__watch.add_filter(_opt_val);
                 break;

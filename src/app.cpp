@@ -177,7 +177,7 @@ malatesta::app::load_env_variable() -> app& {
     std::string _cmd{ std::string{ "mkdir -p " } + this->__tmp_dir };
     if (std::system(_cmd.data()) != 0)
         ;
-    this->__block_file = this->__tmp_dir + std::string{ "/malatesta-lock" };
+    this->__block_file = this->__tmp_dir + std::string{ "/malatesta.lock" };
     this->__watch.add_watch(this->__tmp_dir, false);
     return (*this);
 }

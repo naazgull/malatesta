@@ -37,7 +37,8 @@ malatesta::app::unblock(std::string _dir, std::string _file) -> bool {
 auto
 malatesta::app::start() -> app& {
     if (this->__pause_resume == 1) {
-        std::string _cmd{ std::string{ "touch " } + this->__block_file };
+        std::string _cmd{ std::string{ "bash -c \"echo 1 > " } + this->__block_file +
+                          std::string{ "\"" } };
         if (std::system(_cmd.data()) != 0)
             ;
         return (*this);

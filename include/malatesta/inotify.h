@@ -34,6 +34,12 @@ class inotify_closed_exception : public std::exception {
     auto what() -> char const*;
 };
 
+class dont_start_exception : public std::exception {
+  public:
+    dont_start_exception() = default;
+    virtual ~dont_start_exception() = default;
+};
+
 class wrong_parameter_exception : public std::exception {
   public:
     wrong_parameter_exception() = default;

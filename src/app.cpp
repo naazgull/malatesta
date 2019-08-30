@@ -8,53 +8,28 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <cstdlib>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/sem.h>
 
 malatesta::app::app(int _argc, char** _argv)
   : __argc{ _argc }
   , __argv{ _argv } {
-    this->process_params().load_env_variable();
+    this->setup_semaphore().process_params();
 }
 
 auto
-malatesta::app::block(std::string _dir, std::string _file) -> bool {
-    if (_dir == this->__tmp_dir) {
-        if (_dir + std::string{ "/" } + _file == this->__block_file)
-            this->__blocked = true;
-        return true;
-    }
-    return this->__blocked;
-}
-
-auto
-malatesta::app::unblock(std::string _dir, std::string _file) -> bool {
-    if (_dir == this->__tmp_dir) {
-        if (_dir + std::string{ "/" } + _file == this->__block_file)
-            this->__blocked = false;
-        return true;
-    }
-    return this->__blocked;
+malatesta::app::blocked() -> bool {
+    int _val = semctl(this->__pause, 0, GETVAL);
+    return  _val != 0;
 }
 
 auto
 malatesta::app::start() -> app& {
-    if (this->__pause_resume == 1) {
-        std::ofstream ofs;
-        ofs.open(this->__block_file);
-        ofs << "1" << std::flush;
-        ofs.close();
-        return (*this);
-    }
-    if (this->__pause_resume == 2) {
-        std::string _cmd{ std::string{ "rm -rf " } + this->__block_file };
-        if (std::system(_cmd.data()) != 0)
-            ;
-        return (*this);
-    }
-
     this->__watch.hook(
       { malatesta::observer::event_type::CHANGE, malatesta::observer::event_type::CREATION },
       [this](malatesta::observer::event_type _type, std::string _dir, std::string _file) -> bool {
-          if (this->block(_dir, _file))
+          if (this->blocked())
               return true;
 
           bool _tried{ false };
@@ -88,7 +63,7 @@ malatesta::app::start() -> app& {
     this->__watch.hook(
       malatesta::observer::event_type::REMOVAL,
       [this](malatesta::observer::event_type _type, std::string _dir, std::string _file) -> bool {
-          if (this->unblock(_dir, _file))
+          if (this->blocked())
               return true;
 
           try {
@@ -119,13 +94,15 @@ malatesta::app::process_params() -> app& {
         switch (_opt) {
             case 'p': {
                 std::cout << "pause: all file watches stopped" << std::endl << std::flush;
-                this->__pause_resume = 1;
-                return (*this);
+                sembuf _ops[] = { { 0, 1 } };
+                semop(this->__pause, _ops, 1);
+                throw malatesta::dont_start_exception();
             }
             case 'r': {
                 std::cout << "resume: all file watches resumed" << std::endl << std::flush;
-                this->__pause_resume = 2;
-                return (*this);
+                sembuf _ops[] = { { 0, -1 } };
+                semop(this->__pause, _ops, 1);
+                throw malatesta::dont_start_exception();
             }
             case 'w': {
                 if (this->__argc < 3)
@@ -171,15 +148,11 @@ malatesta::app::process_params() -> app& {
 }
 
 auto
-malatesta::app::load_env_variable() -> app& {
-    const char* _env_var = std::getenv("HOME");
-    if (_env_var == nullptr)
-        _env_var = "/tmp";
-    this->__tmp_dir = std::string{ _env_var } + std::string{ "/.malatesta" };
-    std::string _cmd{ std::string{ "mkdir -p " } + this->__tmp_dir };
-    if (std::system(_cmd.data()) != 0)
+malatesta::app::setup_semaphore() -> app& {
+    char _buffer[512] = { 0 };
+    if (readlink("/proc/self/exe", _buffer, 511) != 0)
         ;
-    this->__block_file = this->__tmp_dir + std::string{ "/malatesta.lock" };
-    this->__watch.add_watch(this->__tmp_dir, false);
+    key_t _key = ftok(_buffer, 1);
+    this->__pause = semget(_key, 1, 0777 | IPC_CREAT);
     return (*this);
 }

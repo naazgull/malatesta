@@ -15,7 +15,7 @@
 malatesta::app::app(int _argc, char** _argv)
   : __argc{ _argc }
   , __argv{ _argv } {
-    this->setup_semaphore().process_params();
+    this->process_params().setup_semaphore();
 }
 
 auto
@@ -94,14 +94,26 @@ malatesta::app::process_params() -> app& {
         switch (_opt) {
             case 'p': {
                 std::cout << "pause: all file watches stopped" << std::endl << std::flush;
+                char _buffer[512] = { 0 };
+                if (readlink("/proc/self/exe", _buffer, 511) != 0)
+                    ;
+                key_t _key = ftok(_buffer, 1);
                 sembuf _ops[] = { { 0, 1 } };
-                semop(this->__pause, _ops, 1);
+                int _sem = semget(_key, 1, 0777);
+                if (_sem > 0)
+                    semop(_sem, _ops, 1);
                 throw malatesta::dont_start_exception();
             }
             case 'r': {
                 std::cout << "resume: all file watches resumed" << std::endl << std::flush;
+                char _buffer[512] = { 0 };
+                if (readlink("/proc/self/exe", _buffer, 511) != 0)
+                    ;
+                key_t _key = ftok(_buffer, 1);
                 sembuf _ops[] = { { 0, -1 } };
-                semop(this->__pause, _ops, 1);
+                int _sem = semget(_key, 1, 0777);
+                if (_sem > 0)
+                    semop(_sem, _ops, 1);
                 throw malatesta::dont_start_exception();
             }
             case 'w': {

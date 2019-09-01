@@ -1,6 +1,6 @@
 
 AC_PREREQ(2.59)
-AC_INIT(malatesta, 0.0.1-10, n@zgul.me)
+AC_INIT(malatesta, 0.0.1-11, n@zgul.me)
 
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([.])

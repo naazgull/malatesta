@@ -3,6 +3,16 @@
 #include <iostream>
 #include <sstream>
 #include <dirent.h>
+#include <ctime>
+#include <iomanip>
+
+auto
+malatesta::timestamp() -> std::string {
+    std::time_t _t = std::time(nullptr);
+    std::ostringstream _out;
+    _out << std::put_time(std::localtime(&_t), "%b %e %H:%M:%S") << std::flush;
+    return _out.str();
+}
 
 malatesta::dir_not_found_exception::dir_not_found_exception(std::string _dir)
   : __what{ std::string{ "could not find dir: " } + _dir } {}
@@ -127,14 +137,18 @@ malatesta::observer::~observer() {
 
 auto
 malatesta::observer::add_exclusion(std::string _regex) -> malatesta::observer& {
-    std::cout << "add: exclusion " << _regex << std::endl << std::flush;
+    std::cout << malatesta::timestamp() << " "
+              << "add: exclusion " << _regex << std::endl
+              << std::flush;
     this->__excluded_dirs.push_back(std::regex{ _regex, std::regex::icase });
     return *this;
 }
 
 auto
 malatesta::observer::add_filter(std::string _regex) -> malatesta::observer& {
-    std::cout << "add: filter " << _regex << std::endl << std::flush;
+    std::cout << malatesta::timestamp() << " "
+              << "add: filter " << _regex << std::endl
+              << std::flush;
     this->__file_filters.push_back(std::regex{ _regex, std::regex::icase });
     return *this;
 }
@@ -277,8 +291,10 @@ malatesta::stream::cp(std::string _dir, std::string _file) -> malatesta::stream&
     std::string _suffix{ _dir.substr(_local_dir.length()) };
 
     std::ostringstream _oss;
-    _oss << "scp " << _dir << "/" << _file << " " << _remote_user_host << ":" << _remote_dir
-         << _suffix << "/" << _file << std::flush;
+    _oss << "scp " << _dir << "/" << _file << std::flush;
+    this->__last_cmd_text.assign(_oss.str());
+
+    _oss << " " << _remote_user_host << ":" << _remote_dir << _suffix << "/" << _file << std::flush;
 
     this->__last_cmd.assign(_oss.str());
     if (std::system(this->__last_cmd.data()) != 0)
@@ -293,8 +309,11 @@ malatesta::stream::rm(std::string _dir, std::string _file) -> malatesta::stream&
     std::string _suffix{ _dir.substr(_local_dir.length()) };
 
     std::ostringstream _oss;
-    _oss << "ssh " << _remote_user_host << "  \"rm -rfv " << _remote_dir << _suffix << "/" << _file
-         << "\"" << std::flush;
+    _oss << "rm -rfv " << _remote_dir << _suffix << "/" << _file << std::flush;
+    this->__last_cmd_text.assign(_oss.str());
+    _oss.str("");
+
+    _oss << "ssh " << _remote_user_host << "  \"" << this->__last_cmd_text << "\"" << std::flush;
     this->__last_cmd.assign(_oss.str());
     if (std::system(this->__last_cmd.data()) != 0)
         throw malatesta::remote_failure_exception(this->__last_cmd);
@@ -308,7 +327,11 @@ malatesta::stream::mkdir(std::string _dir) -> malatesta::stream& {
     std::string _suffix{ _dir.substr(_local_dir.length()) };
 
     std::ostringstream _oss;
-    _oss << "ssh " << _remote_user_host << " \"mkdir -p " << _remote_dir << _suffix << "/\""
+    _oss << "mkdir -p " << _remote_dir << _suffix << std::flush;
+    this->__last_cmd_text.assign(_oss.str());
+    _oss.str("");
+
+    _oss << "ssh " << _remote_user_host << " \"" << this->__last_cmd_text << "/\""
          << std::flush;
     this->__last_cmd.assign(_oss.str());
     if (std::system(this->__last_cmd.data()) != 0)
@@ -320,6 +343,11 @@ malatesta::stream::mkdir(std::string _dir) -> malatesta::stream& {
 auto
 malatesta::stream::last_cmd() const -> std::string {
     return this->__last_cmd;
+}
+
+auto
+malatesta::stream::last_cmd_text() const -> std::string {
+    return this->__last_cmd_text;
 }
 
 auto

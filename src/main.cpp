@@ -24,7 +24,7 @@ main(int argc, char* argv[]) {
         _app.start();
     }
     catch (malatesta::wrong_parameter_exception& _e) {
-        std::cout << _e.what() << std::endl << std::flush;
+        std::cout << malatesta::timestamp() << " " << _e.what() << std::endl << std::flush;
         return 1;
     }
     catch (malatesta::dont_start_exception& _e) {

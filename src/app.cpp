@@ -37,23 +37,29 @@ malatesta::app::start() -> app& {
               try {
                   if (_tried) {
                       this->__stream.mkdir(_dir);
-                      std::cout << "exec: " << this->__stream.last_cmd() << " [ ok ]" << std::endl
+                      std::cout << malatesta::timestamp() << " "
+                                << "exec: " << this->__stream.last_cmd_text() << " [ ok ]" << std::endl
                                 << std::flush;
                   }
                   this->__stream.cp(_dir, _file);
-                  std::cout << "exec: " << this->__stream.last_cmd() << " [ ok ]" << std::endl
+                  std::cout << malatesta::timestamp() << " "
+                            << "exec: " << this->__stream.last_cmd_text() << " [ ok ]" << std::endl
                             << std::flush;
                   return true;
               }
               catch (malatesta::remote_failure_exception& _e) {
                   if (_tried) {
-                      std::cout << "exec: " << _e.what() << " [ fail ]" << std::endl << std::flush;
+                      std::cout << malatesta::timestamp() << " "
+                                << "exec: " << _e.what() << " [ fail ]" << std::endl
+                                << std::flush;
                       break;
                   }
                   _tried = true;
               }
               catch (malatesta::dir_not_found_exception& _e) {
-                  std::cout << "exec: " << _e.what() << " [ fail ]" << std::endl << std::flush;
+                  std::cout << malatesta::timestamp() << " "
+                            << "exec: " << _e.what() << " [ fail ]" << std::endl
+                            << std::flush;
                   break;
               }
           }
@@ -68,12 +74,15 @@ malatesta::app::start() -> app& {
 
           try {
               this->__stream.rm(_dir, _file);
-              std::cout << "exec: " << this->__stream.last_cmd() << " [ ok ]" << std::endl
+              std::cout << malatesta::timestamp() << " "
+                        << "exec: " << this->__stream.last_cmd_text() << " [ ok ]" << std::endl
                         << std::flush;
               return true;
           }
           catch (std::exception& _e) {
-              std::cout << "exec: " << _e.what() << " [ fail ]" << std::endl << std::flush;
+              std::cout << malatesta::timestamp() << " "
+                        << "exec: " << _e.what() << " [ fail ]" << std::endl
+                        << std::flush;
           }
           return false;
       });
@@ -102,7 +111,8 @@ malatesta::app::process_params() -> app& {
                 if (_sem > 0) {
                     semop(_sem, _ops, 1);
                     int _val = semctl(_sem, 0, GETVAL);
-                    std::cout << "pause: file watches blocked by " << _val << " instance(s)"
+                    std::cout << malatesta::timestamp() << " "
+                              << "pause: file watches blocked by " << _val << " instance(s)"
                               << std::endl
                               << std::flush;
                 }
@@ -121,9 +131,12 @@ malatesta::app::process_params() -> app& {
                         semop(_sem, _ops, 1);
                         _val = semctl(_sem, 0, GETVAL);
                         if (_val == 0)
-                            std::cout << "resume: file watches resumed" << std::endl << std::flush;
+                            std::cout << malatesta::timestamp() << " "
+                                      << "resume: file watches resumed" << std::endl
+                                      << std::flush;
                         else
-                            std::cout << "resume: file watches still blocked by " << _val
+                            std::cout << malatesta::timestamp() << " "
+                                      << "resume: file watches still blocked by " << _val
                                       << " instance(s)" << std::endl
                                       << std::flush;
                     }
@@ -138,7 +151,8 @@ malatesta::app::process_params() -> app& {
                 std::string _remote_uri{ _opt_val.substr(_opt_val.find(",") + 1) };
                 _local_uri_params.push_back(_local_uri);
                 this->__stream.add(_local_uri, _remote_uri);
-                std::cout << "watch: " << _local_uri << " -> " << _remote_uri << " [ ok ]"
+                std::cout << malatesta::timestamp() << " "
+                          << "watch: " << _local_uri << " -> " << _remote_uri << " [ ok ]"
                           << std::endl
                           << std::flush;
                 break;

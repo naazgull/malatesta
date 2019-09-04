@@ -15,6 +15,9 @@
 
 namespace malatesta {
 
+auto
+timestamp() -> std::string;
+
 class dir_not_found_exception : public std::exception {
   public:
     dir_not_found_exception(std::string _dir);
@@ -159,11 +162,13 @@ class stream {
     auto rm(std::string _dir, std::string _file) -> stream&;
     auto mkdir(std::string _dir) -> stream&;
     auto last_cmd() const -> std::string;
+    auto last_cmd_text() const -> std::string;
 
   private:
     std::vector<std::string> __local_uri;
     std::map<std::string, std::tuple<std::string, std::string>> __remote_uri;
     std::string __last_cmd{ "" };
+    std::string __last_cmd_text{ "" };
 
     auto find(std::string _dir) const -> std::tuple<std::string, std::string, std::string>;
 };

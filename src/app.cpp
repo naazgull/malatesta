@@ -21,7 +21,7 @@ malatesta::app::app(int _argc, char** _argv)
 auto
 malatesta::app::blocked() -> bool {
     int _val = semctl(this->__pause, 0, GETVAL);
-    return  _val != 0;
+    return _val != 0;
 }
 
 auto
@@ -93,27 +93,41 @@ malatesta::app::process_params() -> app& {
     while ((_opt = getopt(this->__argc, this->__argv, "prw:x:f:")) != -1) {
         switch (_opt) {
             case 'p': {
-                std::cout << "pause: all file watches stopped" << std::endl << std::flush;
                 char _buffer[512] = { 0 };
                 if (readlink("/proc/self/exe", _buffer, 511) != 0)
                     ;
                 key_t _key = ftok(_buffer, 1);
                 sembuf _ops[] = { { 0, 1 } };
                 int _sem = semget(_key, 1, 0777);
-                if (_sem > 0)
+                if (_sem > 0) {
                     semop(_sem, _ops, 1);
+                    int _val = semctl(_sem, 0, GETVAL);
+                    std::cout << "pause: file watches blocked by " << _val << " instance(s)"
+                              << std::endl
+                              << std::flush;
+                }
                 throw malatesta::dont_start_exception();
             }
             case 'r': {
-                std::cout << "resume: all file watches resumed" << std::endl << std::flush;
                 char _buffer[512] = { 0 };
                 if (readlink("/proc/self/exe", _buffer, 511) != 0)
                     ;
                 key_t _key = ftok(_buffer, 1);
                 sembuf _ops[] = { { 0, -1 } };
                 int _sem = semget(_key, 1, 0777);
-                if (_sem > 0)
-                    semop(_sem, _ops, 1);
+                if (_sem > 0) {
+                    int _val = semctl(_sem, 0, GETVAL);
+                    if (_val != 0) {
+                        semop(_sem, _ops, 1);
+                        _val = semctl(_sem, 0, GETVAL);
+                        if (_val == 0)
+                            std::cout << "resume: file watches resumed" << std::endl << std::flush;
+                        else
+                            std::cout << "resume: file watches still blocked by " << _val
+                                      << " instance(s)" << std::endl
+                                      << std::flush;
+                    }
+                }
                 throw malatesta::dont_start_exception();
             }
             case 'w': {

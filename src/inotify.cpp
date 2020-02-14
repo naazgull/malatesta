@@ -197,7 +197,7 @@ malatesta::observer::add_watch(std::string _path, bool _recursive) -> malatesta:
 
 auto
 malatesta::observer::pause() -> malatesta::observer& {
-    for (auto [_name, _wd] : this->__file_descriptors) {
+    for (auto [_, _wd] : this->__file_descriptors) {
         inotify_rm_watch(this->__inotify_descriptor, _wd);
     }
     return *this;
@@ -419,7 +419,6 @@ malatesta::stream::find(std::string _dir) const
     std::string _local_dir{ "" };
 
     for (auto _item : this->__local_uri) {
-        std::cout << _dir << " == " << _item << std::endl << std::flush;
         if (_dir.find(_item) == 0)
             _local_dir.assign(_item);
     }

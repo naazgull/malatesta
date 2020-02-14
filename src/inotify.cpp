@@ -296,7 +296,7 @@ malatesta::observer::listen() -> void {
         }
 
         if (_buf == 0L) {
-            std::this_thread::sleep_for(std::chrono::duration<int, std::milli>{ 100 });
+            std::this_thread::sleep_for(std::chrono::duration<int, std::milli>{ 50 });
         }
     }
 }

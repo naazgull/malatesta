@@ -136,6 +136,9 @@ class observer {
     auto add_exclusion(std::string path) -> observer&;
     auto add_filter(std::string path) -> observer&;
     auto add_watch(std::string path, bool _recursive = true) -> observer&;
+    auto pause() -> malatesta::observer&;
+    auto unpause() -> malatesta::observer&;
+    auto send_signal() -> malatesta::observer&;
     auto hook(event_type _ev_type, event_handler _handler) -> observer&;
     auto hook(std::initializer_list<event_type> _ev_types, event_handler _handler) -> observer&;
     auto listen() -> void;
@@ -146,6 +149,8 @@ class observer {
     std::vector<std::tuple<std::string, int>> __file_descriptors;
     std::map<event_type, std::vector<event_handler>> __event_handlers;
     int __inotify_descriptor{ 0 };
+    int __sem{ 0 };
+    bool __paused{ false };
 
     auto handle(event_type _ev_type, std::string _dir, std::string _file) -> void;
     auto is_excluded(std::string _dir) const -> bool;

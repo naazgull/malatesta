@@ -5,6 +5,12 @@
 #include <dirent.h>
 #include <ctime>
 #include <iomanip>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/sem.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <thread>
 
 auto
 malatesta::timestamp() -> std::string {
@@ -63,7 +69,7 @@ malatesta::event_set::operator ssize_t() {
 
 auto
 malatesta::event_set::operator=(ssize_t _size) -> event_set& {
-    this->__size = _size;
+    this->__size = std::max(_size, 0L);
     return (*this);
 }
 
@@ -129,6 +135,18 @@ malatesta::event_set::iterator::operator!=(iterator _rhs) const -> bool {
 
 malatesta::observer::observer() {
     this->__inotify_descriptor = inotify_init();
+    fcntl(
+      this->__inotify_descriptor, F_SETFL, fcntl(this->__inotify_descriptor, F_GETFL) | O_NONBLOCK);
+
+    char _self_exe_name[512] = { 0 };
+    if (readlink("/proc/self/exe", _self_exe_name, 511) != 0)
+        ;
+    key_t _key = ftok(_self_exe_name, 1);
+    this->__sem = semget(_key, 1, 0777 | IPC_CREAT);
+    if (this->__sem > 0) {
+        sembuf _ops[] = { { 0, 0 } };
+        semop(this->__sem, _ops, 1);
+    }
 }
 
 malatesta::observer::~observer() {
@@ -178,6 +196,30 @@ malatesta::observer::add_watch(std::string _path, bool _recursive) -> malatesta:
 }
 
 auto
+malatesta::observer::pause() -> malatesta::observer& {
+    for (auto [_name, _wd] : this->__file_descriptors) {
+        inotify_rm_watch(this->__inotify_descriptor, _wd);
+    }
+    return *this;
+}
+
+auto
+malatesta::observer::unpause() -> malatesta::observer& {
+    for (auto& _wd : this->__file_descriptors) {
+        std::get<1>(_wd) = inotify_add_watch(
+          this->__inotify_descriptor, std::get<0>(_wd).c_str(), IN_MODIFY | IN_DELETE | IN_CREATE);
+    }
+    return *this;
+}
+
+auto
+malatesta::observer::send_signal() -> malatesta::observer& {
+    sembuf _ops[] = { { 0, 1 } };
+    semop(this->__sem, _ops, 1);
+    return *this;
+}
+
+auto
 malatesta::observer::hook(malatesta::observer::event_type _ev_type,
                           malatesta::observer::event_handler _handler) -> malatesta::observer& {
     std::vector<malatesta::observer::event_handler> _list = { _handler };
@@ -202,8 +244,7 @@ malatesta::observer::listen() -> void {
 
     for (;;) {
 
-        if ((_buf = ::read(this->__inotify_descriptor, _buf, _buf.capacity())) < 0)
-            throw malatesta::inotify_closed_exception();
+        _buf = ::read(this->__inotify_descriptor, _buf, _buf.capacity());
 
         for (auto _event : _buf) {
             std::string _file;
@@ -233,6 +274,29 @@ malatesta::observer::listen() -> void {
             }
 
             this->handle(_ev_type, _target, _file);
+        }
+
+        int _val = semctl(this->__sem, 0, GETVAL);
+        if (_val > 0) {
+            sembuf _ops[] = { { 0, -1 } };
+            semop(this->__sem, _ops, 1);
+            this->__paused = !this->__paused;
+            if (this->__paused) {
+                this->pause();
+                std::cout << malatesta::timestamp() << " "
+                          << "control: paused watches [ ok ]" << std::endl
+                          << std::flush;
+            }
+            else {
+                this->unpause();
+                std::cout << malatesta::timestamp() << " "
+                          << "control: resumed watches [ ok ]" << std::endl
+                          << std::flush;
+            }
+        }
+
+        if (_buf == 0L) {
+            std::this_thread::sleep_for(std::chrono::duration<int, std::milli>{ 100 });
         }
     }
 }
@@ -331,8 +395,7 @@ malatesta::stream::mkdir(std::string _dir) -> malatesta::stream& {
     this->__last_cmd_text.assign(_oss.str());
     _oss.str("");
 
-    _oss << "ssh " << _remote_user_host << " \"" << this->__last_cmd_text << "/\""
-         << std::flush;
+    _oss << "ssh " << _remote_user_host << " \"" << this->__last_cmd_text << "/\"" << std::flush;
     this->__last_cmd.assign(_oss.str());
     if (std::system(this->__last_cmd.data()) != 0)
         throw malatesta::remote_failure_exception(this->__last_cmd);
@@ -356,6 +419,7 @@ malatesta::stream::find(std::string _dir) const
     std::string _local_dir{ "" };
 
     for (auto _item : this->__local_uri) {
+        std::cout << _dir << " == " << _item << std::endl << std::flush;
         if (_dir.find(_item) == 0)
             _local_dir.assign(_item);
     }

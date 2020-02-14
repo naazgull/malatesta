@@ -10,7 +10,7 @@ class app {
     app(int _argc, char** _argv);
     virtual ~app() = default;
 
-    auto blocked() -> bool;
+    auto start_pause_thread() -> void;
     auto start() -> app&;
 
     inline static const std::string USAGE{
@@ -31,13 +31,8 @@ class app {
     char** __argv{ nullptr };
     malatesta::stream __stream;
     malatesta::observer __watch;
-    std::string __tmp_dir;
-    std::string __block_file;
-    bool __blocked{ false };
-    int __pause{ 0 };
 
     auto process_params() -> app&;
-    auto setup_semaphore() -> app&;
 };
 
 }

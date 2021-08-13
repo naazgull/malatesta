@@ -108,7 +108,8 @@ malatesta::event_set::iterator::operator++() -> iterator& {
     return (*this);
 }
 
-auto malatesta::event_set::iterator::operator*() const -> reference {
+auto
+malatesta::event_set::iterator::operator*() const -> reference {
     return this->__current;
 }
 
@@ -119,7 +120,8 @@ malatesta::event_set::iterator::operator++(int) -> iterator {
     return _to_return;
 }
 
-auto malatesta::event_set::iterator::operator-> () const -> pointer {
+auto
+malatesta::event_set::iterator::operator->() const -> pointer {
     return this->__current;
 }
 
@@ -177,10 +179,14 @@ malatesta::observer::add_watch(std::string _path, bool _recursive) -> malatesta:
     if (_dir == nullptr)
         throw malatesta::dir_not_found_exception(_path);
 
-    this->__file_descriptors.push_back(std::make_tuple(
-      _path,
-      inotify_add_watch(
-        this->__inotify_descriptor, _path.c_str(), IN_MODIFY | IN_DELETE | IN_CREATE)));
+    auto result =
+      inotify_add_watch(this->__inotify_descriptor,
+                        _path.c_str(),
+                        IN_MODIFY | IN_DELETE | IN_CREATE | IN_MOVED_FROM | IN_MOVED_TO);
+    if (result < 0)
+        throw malatesta::inotify_closed_exception();
+
+    this->__file_descriptors.push_back(std::make_tuple(_path, result));
 
     if (_recursive) {
         while (dirent* _entry = readdir(_dir)) {
@@ -206,8 +212,10 @@ malatesta::observer::pause() -> malatesta::observer& {
 auto
 malatesta::observer::unpause() -> malatesta::observer& {
     for (auto& _wd : this->__file_descriptors) {
-        std::get<1>(_wd) = inotify_add_watch(
-          this->__inotify_descriptor, std::get<0>(_wd).c_str(), IN_MODIFY | IN_DELETE | IN_CREATE);
+        std::get<1>(_wd) =
+          inotify_add_watch(this->__inotify_descriptor,
+                            std::get<0>(_wd).c_str(),
+                            IN_MODIFY | IN_DELETE | IN_CREATE | IN_MOVED_FROM | IN_MOVED_TO);
     }
     return *this;
 }
@@ -263,6 +271,12 @@ malatesta::observer::listen() -> void {
             else if (_event->mask & IN_CREATE) {
                 _ev_type = malatesta::observer::event_type::CREATION;
             }
+            else if (_event->mask & IN_MOVED_FROM) {
+                _ev_type = malatesta::observer::event_type::MOVE_OUT;
+            }
+            else if (_event->mask & IN_MOVED_TO) {
+                _ev_type = malatesta::observer::event_type::MOVE_IN;
+            }
             else
                 continue;
 
@@ -299,6 +313,35 @@ malatesta::observer::listen() -> void {
             std::this_thread::sleep_for(std::chrono::duration<int, std::milli>{ 50 });
         }
     }
+}
+
+namespace malatesta {
+auto
+operator<<(std::ostream& out, malatesta::observer::event_type const& in) -> std::ostream& {
+    switch (in) {
+        case malatesta::observer::event_type::CHANGE: {
+            out << "CHANGE" << std::flush;
+            break;
+        }
+        case malatesta::observer::event_type::REMOVAL: {
+            out << "REMOVAL" << std::flush;
+            break;
+        }
+        case malatesta::observer::event_type::CREATION: {
+            out << "CREATION" << std::flush;
+            break;
+        }
+        case malatesta::observer::event_type::MOVE_OUT: {
+            out << "MOVE_OUT" << std::flush;
+            break;
+        }
+        case malatesta::observer::event_type::MOVE_IN: {
+            out << "MOVE_IN" << std::flush;
+            break;
+        }
+    }
+    return out;
+}
 }
 
 auto

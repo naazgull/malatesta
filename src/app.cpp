@@ -21,7 +21,9 @@ malatesta::app::app(int _argc, char** _argv)
 auto
 malatesta::app::start() -> app& {
     this->__watch.hook(
-      { malatesta::observer::event_type::CHANGE, malatesta::observer::event_type::CREATION },
+      { malatesta::observer::event_type::CHANGE,
+        malatesta::observer::event_type::CREATION,
+        malatesta::observer::event_type::MOVE_IN },
       [this](malatesta::observer::event_type _type, std::string _dir, std::string _file) -> bool {
           bool _tried{ false };
           for (;;) {
@@ -29,20 +31,22 @@ malatesta::app::start() -> app& {
                   if (_tried) {
                       this->__stream.mkdir(_dir);
                       std::cout << malatesta::timestamp() << " "
-                                << "exec: " << this->__stream.last_cmd_text() << " [ ok ]"
-                                << std::endl
+                                << "exec: [" << _type << "] " << this->__stream.last_cmd_text()
+                                << " [ ok ]" << std::endl
                                 << std::flush;
                   }
                   this->__stream.cp(_dir, _file);
                   std::cout << malatesta::timestamp() << " "
-                            << "exec: " << this->__stream.last_cmd_text() << " [ ok ]" << std::endl
+                            << "exec: [" << _type << "] " << this->__stream.last_cmd_text()
+                            << " [ ok ]" << std::endl
                             << std::flush;
                   return true;
               }
               catch (malatesta::remote_failure_exception& _e) {
                   if (_tried) {
                       std::cout << malatesta::timestamp() << " "
-                                << "exec: " << _e.what() << " [ fail ]" << std::endl
+                                << "exec: [" << _type << "] " << _e.what() << " [ fail ]"
+                                << std::endl
                                 << std::flush;
                       break;
                   }
@@ -50,7 +54,7 @@ malatesta::app::start() -> app& {
               }
               catch (malatesta::dir_not_found_exception& _e) {
                   std::cout << malatesta::timestamp() << " "
-                            << "exec: " << _e.what() << " [ fail ]" << std::endl
+                            << "exec: [" << _type << "] " << _e.what() << " [ fail ]" << std::endl
                             << std::flush;
                   break;
               }
@@ -59,18 +63,19 @@ malatesta::app::start() -> app& {
       });
 
     this->__watch.hook(
-      malatesta::observer::event_type::REMOVAL,
+      { malatesta::observer::event_type::REMOVAL, malatesta::observer::event_type::MOVE_OUT },
       [this](malatesta::observer::event_type _type, std::string _dir, std::string _file) -> bool {
           try {
               this->__stream.rm(_dir, _file);
               std::cout << malatesta::timestamp() << " "
-                        << "exec: " << this->__stream.last_cmd_text() << " [ ok ]" << std::endl
+                        << "exec: [" << _type << "] " << this->__stream.last_cmd_text() << " [ ok ]"
+                        << std::endl
                         << std::flush;
               return true;
           }
           catch (std::exception& _e) {
               std::cout << malatesta::timestamp() << " "
-                        << "exec: " << _e.what() << " [ fail ]" << std::endl
+                        << "exec: [" << _type << "] " << _e.what() << " [ fail ]" << std::endl
                         << std::flush;
           }
           return false;

@@ -71,7 +71,7 @@ class event_set {
     virtual ~event_set() = default;
 
     auto operator=(const event_set&) -> event_set& = delete;
-    auto operator=(event_set &&) -> event_set& = delete;
+    auto operator=(event_set&&) -> event_set& = delete;
 
     class iterator {
       public:
@@ -92,7 +92,7 @@ class event_set {
         // END / BASIC ITERATOR METHODS //
         // INPUT ITERATOR METHODS //
         auto operator++(int) -> iterator;
-        auto operator-> () const -> pointer;
+        auto operator->() const -> pointer;
         auto operator==(iterator _rhs) const -> bool;
         auto operator!=(iterator _rhs) const -> bool;
         // END / INPUT ITERATOR METHODS //
@@ -126,7 +126,7 @@ class event_set {
 
 class observer {
   public:
-    enum class event_type : int { CHANGE, REMOVAL, CREATION, UNKOWN };
+    enum class event_type : int { CHANGE, REMOVAL, CREATION, MOVE_OUT, MOVE_IN, UNKOWN };
     using event_handler =
       std::function<bool(event_type _ev_type, std::string _dir, std::string _file)>;
 
@@ -142,6 +142,9 @@ class observer {
     auto hook(event_type _ev_type, event_handler _handler) -> observer&;
     auto hook(std::initializer_list<event_type> _ev_types, event_handler _handler) -> observer&;
     auto listen() -> void;
+
+    friend auto operator<<(std::ostream& out, malatesta::observer::event_type const& in)
+      -> std::ostream&;
 
   private:
     std::vector<std::regex> __excluded_dirs;

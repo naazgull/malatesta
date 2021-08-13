@@ -339,6 +339,10 @@ operator<<(std::ostream& out, malatesta::observer::event_type const& in) -> std:
             out << "MOVE_IN" << std::flush;
             break;
         }
+        case malatesta::observer::event_type::UNKOWN: {
+            out << "UNKNOWN" << std::flush;
+            break;
+        }
     }
     return out;
 }

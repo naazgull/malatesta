@@ -1,9 +1,0 @@
-/var/log/malatesta/*.log {
-	daily
-	missingok
-	rotate 5
-	compress
-	delaycompress
-	notifempty
-	copytruncate
-}

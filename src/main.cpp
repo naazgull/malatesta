@@ -19,20 +19,5 @@ dispose_sem(int _signal) -> void {
 
 int
 main(int argc, char* argv[]) {
-    std::signal(SIGINT, dispose_sem);
-    std::signal(SIGHUP, dispose_sem);
-    std::signal(SIGQUIT, dispose_sem);
-    std::signal(SIGTERM, dispose_sem);
-    std::signal(SIGKILL, dispose_sem);
-    try {
-        malatesta::app _app{ argc, argv };
-        _app.start();
-    }
-    catch (malatesta::wrong_parameter_exception& _e) {
-        std::cout << malatesta::timestamp() << " " << _e.what() << std::endl << std::flush;
-        return 1;
-    }
-    catch (malatesta::dont_start_exception& _e) {
-    }
     return 0;
 }

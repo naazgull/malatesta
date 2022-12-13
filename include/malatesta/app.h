@@ -1,6 +1,5 @@
 #pragma once
 
-#include <malatesta/config.h>
 #include <malatesta/inotify.h>
 
 namespace malatesta {
@@ -14,7 +13,7 @@ class app {
     auto start() -> app&;
 
     inline static const std::string USAGE{
-        "malatesta (v" PACKAGE_VERSION ")\n"
+        "malatesta (v1.0.0)\n"
         "usage:\n  malatesta -w <local dir>,<full qualified remote dir> -x <exclude dirs regex> -f "
         "<included files regex>\n"
         "       -w\tlocal and remote uri pair - multiple occurrences accepted\n"
